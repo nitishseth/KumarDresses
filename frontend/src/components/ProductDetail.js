@@ -68,7 +68,7 @@ export default function ProductDetail() {
       <div className="grid-2">
         <div className="card">
           <div className="card-header"><span className="card-title">Product Details</span></div>
-          {product.image && <img src={API_HOST + product.image} alt="" className="product-image-lg mb-2" />}
+          {product.image && <img src={product.image.startsWith('http') ? product.image : API_HOST + product.image} alt="" className="product-image-lg mb-2" />}
           <table>
             <tbody>
               <tr><td className="text-muted">SKU</td><td><code>{product.sku}</code></td></tr>

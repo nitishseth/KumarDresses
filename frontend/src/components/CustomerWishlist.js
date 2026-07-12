@@ -25,7 +25,7 @@ export default function CustomerWishlist() {
   };
 
   const getDiscount = (mrp, sp) => mrp > sp ? Math.round(((mrp - sp) / mrp) * 100) : 0;
-  const imgUrl = (img) => img ? (img.startsWith('http') ? img : `${process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000'}/${img}`) : null;
+  const imgUrl = (img) => img ? (img.startsWith('http') ? img : `${process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000'}${img}`) : null;
 
   if (!user) return (
     <div className="sf-wishlist-login">

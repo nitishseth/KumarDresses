@@ -57,7 +57,7 @@ export default function ProductList() {
             <tbody>
               {products.map(p => (
                 <tr key={p.id}>
-                  <td>{p.image ? <img src={API_HOST + p.image} alt="" className="product-image" /> : <div className="product-image" />}</td>
+                  <td>{p.image ? <img src={p.image.startsWith('http') ? p.image : API_HOST + p.image} alt="" className="product-image" /> : <div className="product-image" />}</td>
                   <td><Link to={`/products/${p.id}`} style={{ color: 'var(--primary)', fontWeight: 500 }}>{p.name}</Link></td>
                   <td><code style={{ fontSize: '0.75rem' }}>{p.sku}</code></td>
                   <td>{p.category_name || '—'}</td>
