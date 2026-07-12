@@ -1,0 +1,7 @@
+node_modules/
+kumar_dresses.db
+kumar_dresses.db-wal
+kumar_dresses.db-shm
+uploads/*
+!uploads/.gitkeep
+.env
