@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
+import { Link } from 'react-router-dom';
 import { FiUser, FiLock, FiLogIn, FiEye, FiEyeOff } from 'react-icons/fi';
 
 export default function Login() {
@@ -148,6 +149,9 @@ export default function Login() {
 
           <div style={{ textAlign: 'center', marginTop: 28, fontSize: '0.8rem', color: '#9ca3af' }}>
             <p>Contact your administrator for login credentials</p>
+            <Link to="/shop" style={{ display: 'inline-block', marginTop: 12, color: '#4f46e5', fontWeight: 600, fontSize: '0.9rem' }}>
+              🛍️ Browse Store as Guest →
+            </Link>
           </div>
         </div>
       </div>

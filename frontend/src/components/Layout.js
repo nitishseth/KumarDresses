@@ -54,6 +54,7 @@ export default function Layout({ children }) {
       { to: '/shop-config', icon: <FiSettings />, label: 'Shop Config' },
     ]}] : []),
     { section: '', items: [
+      { to: '/shop', icon: <FiShoppingCart />, label: 'Visit Store', external: true },
       { to: '/about', icon: <FiInfo />, label: 'About' },
     ]},
   ];

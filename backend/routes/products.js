@@ -100,7 +100,7 @@ router.get('/:id', authenticate, (req, res) => {
 
 // Create product (admin)
 router.post('/', authenticate, authorizeAdmin, upload.single('image'), (req, res) => {
-  const { name, category_id, brand, fabric, material, season, collection, mrp, cost_price, selling_price, hsn_code, tax_percent, description } = req.body;
+  const { name, category_id, brand, fabric, material, season, gender, collection, mrp, cost_price, selling_price, hsn_code, tax_percent, description } = req.body;
   if (!name || !mrp || !selling_price) return res.status(400).json({ error: 'Name, MRP and selling price are required' });
 
   const catName = category_id ? (db.prepare('SELECT name FROM categories WHERE id=?').get(category_id) || {}).name : '';
@@ -109,27 +109,27 @@ router.post('/', authenticate, authorizeAdmin, upload.single('image'), (req, res
   const image = req.file ? `/uploads/${req.file.filename}` : null;
 
   const result = db.prepare(`
-    INSERT INTO products (sku,name,category_id,brand,fabric,material,season,collection,mrp,cost_price,selling_price,hsn_code,tax_percent,description,image,barcode)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-  `).run(sku, name, category_id||null, brand||'', fabric||'', material||'', season||'', collection||'', Number(mrp), Number(cost_price)||0, Number(selling_price), hsn_code||'', Number(tax_percent)||0, description||'', image, barcode);
+    INSERT INTO products (sku,name,category_id,brand,fabric,material,season,gender,collection,mrp,cost_price,selling_price,hsn_code,tax_percent,description,image,barcode)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(sku, name, category_id||null, brand||'', fabric||'', material||'', season||'', gender||'', collection||'', Number(mrp), Number(cost_price)||0, Number(selling_price), hsn_code||'', Number(tax_percent)||0, description||'', image, barcode);
 
   res.status(201).json({ id: result.lastInsertRowid, sku, barcode, message: 'Product created' });
 });
 
 // Update product (admin)
 router.put('/:id', authenticate, authorizeAdmin, upload.single('image'), (req, res) => {
-  const { name, category_id, brand, fabric, material, season, collection, mrp, cost_price, selling_price, hsn_code, tax_percent, description } = req.body;
+  const { name, category_id, brand, fabric, material, season, gender, collection, mrp, cost_price, selling_price, hsn_code, tax_percent, description } = req.body;
   const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Product not found' });
 
   const image = req.file ? `/uploads/${req.file.filename}` : existing.image;
 
   db.prepare(`
-    UPDATE products SET name=?,category_id=?,brand=?,fabric=?,material=?,season=?,collection=?,mrp=?,cost_price=?,selling_price=?,hsn_code=?,tax_percent=?,description=?,image=?,updated_at=CURRENT_TIMESTAMP
+    UPDATE products SET name=?,category_id=?,brand=?,fabric=?,material=?,season=?,gender=?,collection=?,mrp=?,cost_price=?,selling_price=?,hsn_code=?,tax_percent=?,description=?,image=?,updated_at=CURRENT_TIMESTAMP
     WHERE id=?
   `).run(
     name||existing.name, category_id||existing.category_id, brand||existing.brand, fabric||existing.fabric,
-    material||existing.material, season||existing.season, collection||existing.collection,
+    material||existing.material, season||existing.season, gender!==undefined?gender:existing.gender, collection||existing.collection,
     Number(mrp)||existing.mrp, Number(cost_price)||existing.cost_price, Number(selling_price)||existing.selling_price,
     hsn_code||existing.hsn_code, Number(tax_percent)||existing.tax_percent, description||existing.description,
     image, req.params.id

@@ -90,6 +90,7 @@ db.exec(`
     fabric TEXT,
     material TEXT,
     season TEXT,
+    gender TEXT DEFAULT '' CHECK(gender IN ('','Men','Women','Boys','Girls','Unisex')),
     collection TEXT,
     mrp REAL NOT NULL,
     cost_price REAL DEFAULT 0,
@@ -103,6 +104,18 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+  );
+
+  -- ===== WISHLISTS =====
+  CREATE TABLE IF NOT EXISTS wishlists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    session_id TEXT,
+    product_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
   );
 
   -- ===== PRODUCT VARIANTS (Size + Color + Fit) =====
@@ -290,6 +303,13 @@ if (!shopExists) {
 const storeExists = db.prepare('SELECT id FROM stores LIMIT 1').get();
 if (!storeExists) {
   db.prepare('INSERT INTO stores (name,code,address,is_warehouse) VALUES (?,?,?,?)').run('Main Store', 'MAIN', 'Default Location', 0);
+}
+
+// Migration: Add gender column to products if missing
+try {
+  db.prepare("SELECT gender FROM products LIMIT 1").get();
+} catch(e) {
+  db.exec("ALTER TABLE products ADD COLUMN gender TEXT DEFAULT '' CHECK(gender IN ('','Men','Women','Boys','Girls','Unisex'))");
 }
 
 module.exports = db;

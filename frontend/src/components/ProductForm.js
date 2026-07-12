@@ -10,7 +10,7 @@ export default function ProductForm() {
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    name: '', category_id: '', brand: '', fabric: '', material: '', season: '',
+    name: '', category_id: '', brand: '', fabric: '', material: '', season: '', gender: '',
     collection: '', mrp: '', cost_price: '', selling_price: '', hsn_code: '',
     tax_percent: '', description: ''
   });
@@ -22,7 +22,7 @@ export default function ProductForm() {
         const p = r.data;
         setForm({
           name: p.name, category_id: p.category_id || '', brand: p.brand || '', fabric: p.fabric || '',
-          material: p.material || '', season: p.season || '', collection: p.collection || '',
+          material: p.material || '', season: p.season || '', gender: p.gender || '', collection: p.collection || '',
           mrp: p.mrp, cost_price: p.cost_price || '', selling_price: p.selling_price,
           hsn_code: p.hsn_code || '', tax_percent: p.tax_percent || '', description: p.description || ''
         });
@@ -94,6 +94,12 @@ export default function ProductForm() {
               <label>Season</label>
               <select className="form-control" value={form.season} onChange={e => setForm({ ...form, season: e.target.value })}>
                 <option value="">Select</option><option>Summer</option><option>Winter</option><option>Monsoon</option><option>All-Season</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Gender</label>
+              <select className="form-control" value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}>
+                <option value="">Select</option><option>Men</option><option>Women</option><option>Boys</option><option>Girls</option><option>Unisex</option>
               </select>
             </div>
             <div className="form-group">
