@@ -165,9 +165,9 @@ router.get('/offers', async (req, res) => {
     const { rows } = await db.query(`
       SELECT p.id, p.name, p.brand, p.mrp, p.selling_price, p.image, p.gender,
              c.name as category_name,
-             ROUND(((p.mrp - p.selling_price) * 100.0 / p.mrp), 0) as discount_pct
+             CASE WHEN p.mrp > 0 THEN ROUND(((p.mrp - p.selling_price) * 100.0 / p.mrp), 0) ELSE 0 END as discount_pct
       FROM products p LEFT JOIN categories c ON p.category_id = c.id
-      WHERE p.active = 1 AND p.mrp > p.selling_price
+      WHERE p.active = 1 AND p.mrp > p.selling_price AND p.mrp > 0
       ORDER BY discount_pct DESC LIMIT 12
     `);
     res.json(rows);

@@ -12,9 +12,9 @@ export default function CustomerHome() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/storefront/new-arrivals'),
-      api.get('/storefront/offers'),
-      api.get('/storefront/categories'),
+      api.get('/storefront/new-arrivals').catch(() => ({ data: [] })),
+      api.get('/storefront/offers').catch(() => ({ data: [] })),
+      api.get('/storefront/categories').catch(() => ({ data: [] })),
       user ? api.get('/storefront/wishlist/ids').catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
     ]).then(([na, of, ca, wi]) => {
       setNewArrivals(na.data);
