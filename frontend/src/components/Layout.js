@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FiHome, FiPackage, FiShoppingCart, FiUsers, FiSettings, FiBarChart2, FiGrid, FiLayers, FiAlertTriangle, FiTruck, FiLock, FiArchive, FiFileText, FiTrendingUp, FiDollarSign, FiLogOut, FiMenu, FiX, FiInfo } from 'react-icons/fi';
-import api from '../utils/api';
-
-const API_HOST = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+import api, { getImageUrl } from '../utils/api';
 
 export default function Layout({ children }) {
   const { user, shopConfig, logout, isAdmin, isStaff } = useAuth();
@@ -65,7 +63,7 @@ export default function Layout({ children }) {
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <img
-            src={shopConfig?.logo ? API_HOST + shopConfig.logo : '/logo.svg'}
+            src={shopConfig?.logo ? getImageUrl(shopConfig.logo) : '/logo.svg'}
             alt="Shop Logo"
             style={{ width: 52, height: 52, borderRadius: 14, objectFit: 'cover', marginBottom: 10, background: 'rgba(255,255,255,0.1)' }}
           />

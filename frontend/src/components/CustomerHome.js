@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import api from '../utils/api';
+import api, { getImageUrl } from '../utils/api';
 
 export default function CustomerHome() {
   const { user } = useOutletContext();
@@ -181,7 +181,7 @@ export default function CustomerHome() {
 
 function ProductCard({ product: p, wishlisted, onWishToggle, user, getDiscount }) {
   const disc = getDiscount(p.mrp, p.selling_price);
-  const imgSrc = p.image ? (p.image.startsWith('http') ? p.image : `${process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000'}${p.image}`) : null;
+  const imgSrc = getImageUrl(p.image);
 
   return (
     <div className="sf-pcard">

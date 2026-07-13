@@ -40,12 +40,12 @@ router.get('/products', async (req, res) => {
     if (max_price) { where.push(`p.selling_price <= $${paramIndex++}`); params.push(Number(max_price)); }
     if (search) { where.push(`(p.name ILIKE $${paramIndex} OR p.brand ILIKE $${paramIndex + 1} OR p.description ILIKE $${paramIndex + 2})`); params.push(`%${search}%`, `%${search}%`, `%${search}%`); paramIndex += 3; }
 
-    // size and color filter via variant join
-    let variantJoin = '';
+    // size and color filter via EXISTS subquery (avoids DISTINCT issues)
     if (size || color) {
-      variantJoin = 'JOIN product_variants pv2 ON pv2.product_id = p.id AND pv2.active = 1';
-      if (size) { variantJoin += ` AND pv2.size = $${paramIndex++}`; params.push(size); }
-      if (color) { variantJoin += ` AND pv2.color = $${paramIndex++}`; params.push(color); }
+      let variantWhere = ['pv2.product_id = p.id', 'pv2.active = 1'];
+      if (size) { variantWhere.push(`pv2.size = $${paramIndex++}`); params.push(size); }
+      if (color) { variantWhere.push(`pv2.color = $${paramIndex++}`); params.push(color); }
+      where.push(`EXISTS (SELECT 1 FROM product_variants pv2 WHERE ${variantWhere.join(' AND ')})`);
     }
 
     let orderBy = 'p.created_at DESC';
@@ -57,19 +57,17 @@ router.get('/products', async (req, res) => {
 
     const whereClause = where.join(' AND ');
 
-    const countResult = await db.query(`SELECT COUNT(DISTINCT p.id) as total FROM products p ${variantJoin} WHERE ${whereClause}`, params);
+    const countResult = await db.query(`SELECT COUNT(*) as total FROM products p WHERE ${whereClause}`, params);
     const total = parseInt(countResult.rows[0].total);
 
     const limitParam = paramIndex++;
     const offsetParam = paramIndex++;
     const query = `
-      SELECT DISTINCT p.id, p.name, p.sku, p.brand, p.mrp, p.selling_price, p.image, p.gender, p.season,
-             p.created_at,
+      SELECT p.id, p.name, p.sku, p.brand, p.mrp, p.selling_price, p.image, p.gender, p.season,
              c.name as category_name,
              COALESCE(stock_agg.total_stock, 0) as total_stock
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
-      ${variantJoin}
       LEFT JOIN (
         SELECT pv.product_id, SUM(vs.quantity) as total_stock
         FROM product_variants pv

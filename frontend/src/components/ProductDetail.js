@@ -3,9 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import Barcode from 'react-barcode';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
+import api, { getImageUrl } from '../utils/api';
 
-const API_HOST = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 const SIZES_PRESET = ['XS','S','M','L','XL','XXL','XXXL','28','30','32','34','36','38','40','42','44','Free Size'];
 const FITS = ['Regular','Slim','Relaxed','Oversized'];
 
@@ -68,7 +67,7 @@ export default function ProductDetail() {
       <div className="grid-2">
         <div className="card">
           <div className="card-header"><span className="card-title">Product Details</span></div>
-          {product.image && <img src={product.image.startsWith('http') ? product.image : API_HOST + product.image} alt="" className="product-image-lg mb-2" />}
+          {product.image && <img src={getImageUrl(product.image)} alt="" className="product-image-lg mb-2" />}
           <table>
             <tbody>
               <tr><td className="text-muted">SKU</td><td><code>{product.sku}</code></td></tr>

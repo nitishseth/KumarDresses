@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { FiUsers, FiPlus, FiEdit2, FiTrash2, FiSearch, FiUserCheck, FiUserX, FiShield, FiUser, FiPhone, FiMapPin, FiEye, FiEyeOff } from 'react-icons/fi';
-import api from '../utils/api';
-
-const API_HOST = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+import api, { getImageUrl } from '../utils/api';
 
 const ROLE_CONFIG = {
   admin: { label: 'Admin', color: '#ef4444', bg: '#fef2f2', icon: <FiShield />, desc: 'Full access to all features' },
@@ -158,7 +156,7 @@ export default function StaffManagement() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
                     {/* Avatar */}
                     {s.picture ? (
-                      <img src={API_HOST + s.picture} alt="" style={{ width: 54, height: 54, borderRadius: 14, objectFit: 'cover', border: `2px solid ${rc.color}22` }} />
+                      <img src={getImageUrl(s.picture)} alt="" style={{ width: 54, height: 54, borderRadius: 14, objectFit: 'cover', border: `2px solid ${rc.color}22` }} />
                     ) : (
                       <div style={{
                         width: 54, height: 54, borderRadius: 14,
@@ -227,7 +225,7 @@ export default function StaffManagement() {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               {showView.picture ? (
-                <img src={API_HOST + showView.picture} alt="" style={{ width: 90, height: 90, borderRadius: 20, objectFit: 'cover', marginBottom: 12, border: '3px solid #e5e7eb' }} />
+                <img src={getImageUrl(showView.picture)} alt="" style={{ width: 90, height: 90, borderRadius: 20, objectFit: 'cover', marginBottom: 12, border: '3px solid #e5e7eb' }} />
               ) : (
                 <div style={{
                   width: 90, height: 90, borderRadius: 20, margin: '0 auto 12px',

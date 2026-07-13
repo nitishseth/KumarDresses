@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
-
-const API_HOST = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+import api, { getImageUrl } from '../utils/api';
 
 export default function ProductList() {
   const { isAdmin } = useAuth();
@@ -57,7 +55,7 @@ export default function ProductList() {
             <tbody>
               {products.map(p => (
                 <tr key={p.id}>
-                  <td>{p.image ? <img src={p.image.startsWith('http') ? p.image : API_HOST + p.image} alt="" className="product-image" /> : <div className="product-image" />}</td>
+                  <td>{p.image ? <img src={getImageUrl(p.image)} alt="" className="product-image" /> : <div className="product-image" />}</td>
                   <td><Link to={`/products/${p.id}`} style={{ color: 'var(--primary)', fontWeight: 500 }}>{p.name}</Link></td>
                   <td><code style={{ fontSize: '0.75rem' }}>{p.sku}</code></td>
                   <td>{p.category_name || '—'}</td>

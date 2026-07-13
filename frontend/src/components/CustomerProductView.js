@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useOutletContext } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import api from '../utils/api';
+import api, { getImageUrl } from '../utils/api';
 
 export default function CustomerProductView() {
   const { id } = useParams();
@@ -45,7 +45,7 @@ export default function CustomerProductView() {
   if (!product) return <div className="sf-empty"><span className="sf-empty-icon">😕</span><h3>Product not found</h3><Link to="/shop/products" className="sf-btn sf-btn-primary">Browse Products</Link></div>;
 
   const disc = product.mrp > product.selling_price ? Math.round(((product.mrp - product.selling_price) / product.mrp) * 100) : 0;
-  const imgSrc = product.image ? (product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000'}${product.image}`) : null;
+  const imgSrc = getImageUrl(product.image);
   const sizes = [...new Set(product.variants?.map(v => v.size) || [])];
   const colors = [...new Set(product.variants?.filter(v => v.color).map(v => v.color) || [])];
   const selectedVariant = product.variants?.find(v =>
