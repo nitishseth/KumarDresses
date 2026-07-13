@@ -4,61 +4,92 @@ const db = require('../db');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
 
 // List stores
-router.get('/', authenticate, (req, res) => {
-  const stores = db.prepare('SELECT * FROM stores WHERE active = 1 ORDER BY name').all();
-  res.json(stores);
+router.get('/', authenticate, async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM stores WHERE active = 1 ORDER BY name');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get single store with stock summary
-router.get('/:id', authenticate, (req, res) => {
-  const store = db.prepare('SELECT * FROM stores WHERE id = ?').get(req.params.id);
-  if (!store) return res.status(404).json({ error: 'Store not found' });
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM stores WHERE id = $1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Store not found' });
+    const store = rows[0];
 
-  store.stock_summary = db.prepare(`
-    SELECT COUNT(DISTINCT pv.product_id) as product_count,
-           COUNT(vs.id) as variant_count,
-           COALESCE(SUM(vs.quantity),0) as total_stock,
-           COALESCE(SUM(vs.reserved_quantity),0) as total_reserved
-    FROM variant_stock vs
-    JOIN product_variants pv ON vs.variant_id = pv.id
-    WHERE vs.store_id = ? AND pv.active = 1
-  `).get(store.id);
-  res.json(store);
+    const summary = await db.query(`
+      SELECT COUNT(DISTINCT pv.product_id) as product_count,
+             COUNT(vs.id) as variant_count,
+             COALESCE(SUM(vs.quantity),0) as total_stock,
+             COALESCE(SUM(vs.reserved_quantity),0) as total_reserved
+      FROM variant_stock vs
+      JOIN product_variants pv ON vs.variant_id = pv.id
+      WHERE vs.store_id = $1 AND pv.active = 1
+    `, [store.id]);
+    store.stock_summary = summary.rows[0];
+    res.json(store);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Create store (admin)
-router.post('/', authenticate, authorizeAdmin, (req, res) => {
-  const { name, code, address, phone, is_warehouse } = req.body;
-  if (!name || !code) return res.status(400).json({ error: 'Name and code are required' });
+router.post('/', authenticate, authorizeAdmin, async (req, res) => {
+  try {
+    const { name, code, address, phone, is_warehouse } = req.body;
+    if (!name || !code) return res.status(400).json({ error: 'Name and code are required' });
 
-  const exists = db.prepare('SELECT id FROM stores WHERE code = ?').get(code);
-  if (exists) return res.status(400).json({ error: 'Store code already exists' });
+    const { rows: existing } = await db.query('SELECT id FROM stores WHERE code = $1', [code]);
+    if (existing[0]) return res.status(400).json({ error: 'Store code already exists' });
 
-  const result = db.prepare('INSERT INTO stores (name, code, address, phone, is_warehouse) VALUES (?,?,?,?,?)')
-    .run(name, code.toUpperCase(), address||'', phone||'', is_warehouse ? 1 : 0);
+    const { rows } = await db.query(
+      'INSERT INTO stores (name, code, address, phone, is_warehouse) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [name, code.toUpperCase(), address || '', phone || '', is_warehouse ? 1 : 0]
+    );
+    const storeId = rows[0].id;
 
-  // Create stock entries for all existing active variants
-  const variants = db.prepare('SELECT id FROM product_variants WHERE active = 1').all();
-  const insertStock = db.prepare('INSERT OR IGNORE INTO variant_stock (variant_id, store_id, quantity, reorder_point) VALUES (?,?,0,5)');
-  for (const v of variants) { insertStock.run(v.id, result.lastInsertRowid); }
+    // Create stock entries for all existing active variants
+    const { rows: variants } = await db.query('SELECT id FROM product_variants WHERE active = 1');
+    for (const v of variants) {
+      await db.query(
+        'INSERT INTO variant_stock (variant_id, store_id, quantity, reorder_point) VALUES ($1,$2,0,5) ON CONFLICT(variant_id, store_id) DO NOTHING',
+        [v.id, storeId]
+      );
+    }
 
-  res.status(201).json({ id: result.lastInsertRowid, message: 'Store created' });
+    res.status(201).json({ id: storeId, message: 'Store created' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Update store (admin)
-router.put('/:id', authenticate, authorizeAdmin, (req, res) => {
-  const { name, address, phone, is_warehouse } = req.body;
-  db.prepare('UPDATE stores SET name=COALESCE(?,name), address=COALESCE(?,address), phone=COALESCE(?,phone), is_warehouse=COALESCE(?,is_warehouse) WHERE id=?')
-    .run(name, address, phone, is_warehouse !== undefined ? (is_warehouse ? 1 : 0) : null, req.params.id);
-  res.json({ message: 'Store updated' });
+router.put('/:id', authenticate, authorizeAdmin, async (req, res) => {
+  try {
+    const { name, address, phone, is_warehouse } = req.body;
+    await db.query(
+      'UPDATE stores SET name=COALESCE($1,name), address=COALESCE($2,address), phone=COALESCE($3,phone), is_warehouse=COALESCE($4,is_warehouse) WHERE id=$5',
+      [name, address, phone, is_warehouse !== undefined ? (is_warehouse ? 1 : 0) : null, req.params.id]
+    );
+    res.json({ message: 'Store updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Delete store (admin) — soft delete
-router.delete('/:id', authenticate, authorizeAdmin, (req, res) => {
-  const storeCount = db.prepare('SELECT COUNT(*) as c FROM stores WHERE active = 1').get().c;
-  if (storeCount <= 1) return res.status(400).json({ error: 'Cannot delete the last store' });
-  db.prepare('UPDATE stores SET active = 0 WHERE id = ?').run(req.params.id);
-  res.json({ message: 'Store deleted' });
+router.delete('/:id', authenticate, authorizeAdmin, async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT COUNT(*) as c FROM stores WHERE active = 1');
+    if (parseInt(rows[0].c) <= 1) return res.status(400).json({ error: 'Cannot delete the last store' });
+    await db.query('UPDATE stores SET active = 0 WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Store deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

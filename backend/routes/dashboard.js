@@ -4,122 +4,154 @@ const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
 // Main dashboard stats
-router.get('/', authenticate, (req, res) => {
-  const { store_id } = req.query;
-  const storeFilter = store_id ? 'AND b.store_id = ?' : '';
-  const stockStoreFilter = store_id ? 'AND vs.store_id = ?' : '';
-  const sp = store_id ? [store_id] : [];
+router.get('/', authenticate, async (req, res) => {
+  try {
+    const { store_id } = req.query;
+    let storeFilter = '';
+    let stockStoreFilter = '';
+    let sp = [];
+    let paramIndex = 1;
 
-  // Product counts
-  const totalProducts = db.prepare('SELECT COUNT(*) as c FROM products WHERE active = 1').get().c;
-  const totalVariants = db.prepare('SELECT COUNT(*) as c FROM product_variants WHERE active = 1').get().c;
+    if (store_id) {
+      storeFilter = `AND b.store_id = $${paramIndex}`;
+      stockStoreFilter = `AND vs.store_id = $${paramIndex}`;
+      sp = [store_id];
+      paramIndex++;
+    }
 
-  // Stock summary
-  const stockSummary = db.prepare(`
-    SELECT COALESCE(SUM(vs.quantity),0) as total_stock,
-           COALESCE(SUM(vs.reserved_quantity),0) as total_reserved,
-           COUNT(CASE WHEN vs.quantity = 0 THEN 1 END) as out_of_stock_count,
-           COUNT(CASE WHEN vs.quantity > 0 AND vs.quantity <= vs.reorder_point THEN 1 END) as low_stock_count
-    FROM variant_stock vs
-    JOIN product_variants pv ON vs.variant_id = pv.id AND pv.active = 1
-    WHERE 1=1 ${stockStoreFilter}
-  `).get(...sp);
+    // Product counts
+    const totalProductsR = await db.query('SELECT COUNT(*) as c FROM products WHERE active = 1');
+    const totalProducts = parseInt(totalProductsR.rows[0].c);
+    const totalVariantsR = await db.query('SELECT COUNT(*) as c FROM product_variants WHERE active = 1');
+    const totalVariants = parseInt(totalVariantsR.rows[0].c);
 
-  // Today's sales
-  const todaySales = db.prepare(`
-    SELECT COUNT(*) as bill_count, COALESCE(SUM(total_amount),0) as revenue, COALESCE(SUM(paid_amount),0) as collected
-    FROM bills WHERE date(created_at) = date('now') ${storeFilter}
-  `).get(...sp);
+    // Stock summary
+    const stockSummaryR = await db.query(`
+      SELECT COALESCE(SUM(vs.quantity),0) as total_stock,
+             COALESCE(SUM(vs.reserved_quantity),0) as total_reserved,
+             COUNT(CASE WHEN vs.quantity = 0 THEN 1 END) as out_of_stock_count,
+             COUNT(CASE WHEN vs.quantity > 0 AND vs.quantity <= vs.reorder_point THEN 1 END) as low_stock_count
+      FROM variant_stock vs
+      JOIN product_variants pv ON vs.variant_id = pv.id AND pv.active = 1
+      WHERE 1=1 ${stockStoreFilter}
+    `, sp);
+    const stockSummary = stockSummaryR.rows[0];
 
-  // This month's sales
-  const monthSales = db.prepare(`
-    SELECT COUNT(*) as bill_count, COALESCE(SUM(total_amount),0) as revenue, COALESCE(SUM(paid_amount),0) as collected
-    FROM bills WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now') ${storeFilter}
-  `).get(...sp);
+    // Today's sales
+    const todaySalesR = await db.query(`
+      SELECT COUNT(*) as bill_count, COALESCE(SUM(total_amount),0) as revenue, COALESCE(SUM(paid_amount),0) as collected
+      FROM bills b WHERE created_at::date = CURRENT_DATE ${storeFilter}
+    `, sp);
+    const todaySales = todaySalesR.rows[0];
 
-  // Overdue partial payments
-  const overdueCount = db.prepare(`
-    SELECT COUNT(*) as c, COALESCE(SUM(total_amount - paid_amount),0) as total_due
-    FROM bills WHERE payment_status = 'partial' AND julianday('now') - julianday(created_at) > 30 ${storeFilter}
-  `).get(...sp);
+    // This month's sales
+    const monthSalesR = await db.query(`
+      SELECT COUNT(*) as bill_count, COALESCE(SUM(total_amount),0) as revenue, COALESCE(SUM(paid_amount),0) as collected
+      FROM bills b WHERE to_char(created_at, 'YYYY-MM') = to_char(NOW(), 'YYYY-MM') ${storeFilter}
+    `, sp);
+    const monthSales = monthSalesR.rows[0];
 
-  // Recent bills (last 10)
-  const recentBills = db.prepare(`
-    SELECT b.id, b.bill_number, b.customer_name, b.total_amount, b.paid_amount, b.payment_status, b.created_at
-    FROM bills b WHERE 1=1 ${storeFilter}
-    ORDER BY b.created_at DESC LIMIT 10
-  `).all(...sp);
+    // Overdue partial payments
+    const overdueCountR = await db.query(`
+      SELECT COUNT(*) as c, COALESCE(SUM(total_amount - paid_amount),0) as total_due
+      FROM bills b WHERE payment_status = 'partial' AND EXTRACT(DAY FROM NOW() - created_at) > 30 ${storeFilter}
+    `, sp);
+    const overdueCount = overdueCountR.rows[0];
 
-  // Top selling products this month
-  const topProducts = db.prepare(`
-    SELECT bi.product_name, bi.sku, SUM(bi.quantity) as total_qty, SUM(bi.total) as total_revenue
-    FROM bill_items bi
-    JOIN bills b ON bi.bill_id = b.id
-    WHERE strftime('%Y-%m', b.created_at) = strftime('%Y-%m', 'now') ${storeFilter}
-    GROUP BY bi.variant_id
-    ORDER BY total_qty DESC LIMIT 10
-  `).all(...sp);
+    // Recent bills (last 10)
+    const recentBillsR = await db.query(`
+      SELECT b.id, b.bill_number, b.customer_name, b.total_amount, b.paid_amount, b.payment_status, b.created_at
+      FROM bills b WHERE 1=1 ${storeFilter}
+      ORDER BY b.created_at DESC LIMIT 10
+    `, sp);
+    const recentBills = recentBillsR.rows;
 
-  // Revenue by day (last 30 days)
-  const dailyRevenue = db.prepare(`
-    SELECT date(created_at) as date, SUM(total_amount) as revenue, COUNT(*) as bills
-    FROM bills
-    WHERE created_at >= date('now', '-30 days') ${storeFilter}
-    GROUP BY date(created_at)
-    ORDER BY date
-  `).all(...sp);
+    // Top selling products this month
+    const topProductsR = await db.query(`
+      SELECT bi.product_name, bi.sku, SUM(bi.quantity) as total_qty, SUM(bi.total) as total_revenue
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      WHERE to_char(b.created_at, 'YYYY-MM') = to_char(NOW(), 'YYYY-MM') ${storeFilter}
+      GROUP BY bi.variant_id, bi.product_name, bi.sku
+      ORDER BY total_qty DESC LIMIT 10
+    `, sp);
+    const topProducts = topProductsR.rows;
 
-  // Store count
-  const storeCount = db.prepare('SELECT COUNT(*) as c FROM stores WHERE active = 1').get().c;
+    // Revenue by day (last 30 days)
+    const dailyRevenueR = await db.query(`
+      SELECT created_at::date as date, SUM(total_amount) as revenue, COUNT(*) as bills
+      FROM bills b
+      WHERE created_at >= CURRENT_DATE - INTERVAL '30 days' ${storeFilter}
+      GROUP BY created_at::date
+      ORDER BY date
+    `, sp);
+    const dailyRevenue = dailyRevenueR.rows;
 
-  // Category count
-  const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories WHERE active = 1').get().c;
+    // Store count
+    const storeCountR = await db.query('SELECT COUNT(*) as c FROM stores WHERE active = 1');
+    const storeCount = parseInt(storeCountR.rows[0].c);
 
-  res.json({
-    totalProducts, totalVariants, stockSummary,
-    todaySales, monthSales, overdueCount,
-    recentBills, topProducts, dailyRevenue,
-    storeCount, categoryCount
-  });
+    // Category count
+    const categoryCountR = await db.query('SELECT COUNT(*) as c FROM categories WHERE active = 1');
+    const categoryCount = parseInt(categoryCountR.rows[0].c);
+
+    res.json({
+      totalProducts, totalVariants, stockSummary,
+      todaySales, monthSales, overdueCount,
+      recentBills, topProducts, dailyRevenue,
+      storeCount, categoryCount
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Sales chart data (monthly for the year)
-router.get('/sales-chart', authenticate, (req, res) => {
-  const { year, store_id } = req.query;
-  const y = year || new Date().getFullYear();
-  const storeFilter = store_id ? 'AND store_id = ?' : '';
-  const sp = store_id ? [store_id] : [];
+router.get('/sales-chart', authenticate, async (req, res) => {
+  try {
+    const { year, store_id } = req.query;
+    const y = year || new Date().getFullYear();
+    let storeFilter = '';
+    let params = [String(y)];
+    if (store_id) { storeFilter = 'AND store_id = $2'; params.push(store_id); }
 
-  const monthly = db.prepare(`
-    SELECT strftime('%m', created_at) as month, SUM(total_amount) as revenue, COUNT(*) as bills, SUM(paid_amount) as collected
-    FROM bills
-    WHERE strftime('%Y', created_at) = ? ${storeFilter}
-    GROUP BY strftime('%m', created_at)
-    ORDER BY month
-  `).all(String(y), ...sp);
+    const { rows: monthly } = await db.query(`
+      SELECT to_char(created_at, 'MM') as month, SUM(total_amount) as revenue, COUNT(*) as bills, SUM(paid_amount) as collected
+      FROM bills
+      WHERE to_char(created_at, 'YYYY') = $1 ${storeFilter}
+      GROUP BY to_char(created_at, 'MM')
+      ORDER BY month
+    `, params);
 
-  res.json(monthly);
+    res.json(monthly);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Predictions - items likely to sell more in a given month based on history
-router.get('/predictions', authenticate, (req, res) => {
-  const { month } = req.query; // 1-12
-  const m = (month || (new Date().getMonth() + 1)).toString().padStart(2, '0');
+// Predictions
+router.get('/predictions', authenticate, async (req, res) => {
+  try {
+    const { month } = req.query;
+    const m = (month || (new Date().getMonth() + 1)).toString().padStart(2, '0');
 
-  const predictions = db.prepare(`
-    SELECT bi.product_name, bi.sku, bi.size, bi.color,
-           SUM(bi.quantity) as total_sold,
-           COUNT(DISTINCT strftime('%Y', b.created_at)) as years_with_data,
-           ROUND(SUM(bi.quantity) * 1.0 / COUNT(DISTINCT strftime('%Y', b.created_at)), 1) as avg_per_year
-    FROM bill_items bi
-    JOIN bills b ON bi.bill_id = b.id
-    WHERE strftime('%m', b.created_at) = ?
-    GROUP BY bi.variant_id
-    ORDER BY avg_per_year DESC
-    LIMIT 20
-  `).all(m);
+    const { rows: predictions } = await db.query(`
+      SELECT bi.product_name, bi.sku, bi.size, bi.color,
+             SUM(bi.quantity) as total_sold,
+             COUNT(DISTINCT to_char(b.created_at, 'YYYY')) as years_with_data,
+             ROUND(SUM(bi.quantity) * 1.0 / COUNT(DISTINCT to_char(b.created_at, 'YYYY')), 1) as avg_per_year
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      WHERE to_char(b.created_at, 'MM') = $1
+      GROUP BY bi.variant_id, bi.product_name, bi.sku, bi.size, bi.color
+      ORDER BY avg_per_year DESC
+      LIMIT 20
+    `, [m]);
 
-  res.json({ month: Number(m), predictions });
+    res.json({ month: Number(m), predictions });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

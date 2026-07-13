@@ -15,36 +15,45 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Get shop config
-router.get('/', authenticate, (req, res) => {
-  const config = db.prepare('SELECT * FROM shop_config LIMIT 1').get();
-  res.json(config || {});
+router.get('/', authenticate, async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM shop_config LIMIT 1');
+    res.json(rows[0] || {});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Update shop config (admin only, one-time setup or update)
-router.put('/', authenticate, authorizeAdmin, upload.single('logo'), (req, res) => {
-  const { shop_name, address, phone, email, gst_number, tagline } = req.body;
-  if (!shop_name) {
-    return res.status(400).json({ error: 'Shop name is required' });
+// Update shop config (admin only)
+router.put('/', authenticate, authorizeAdmin, upload.single('logo'), async (req, res) => {
+  try {
+    const { shop_name, address, phone, email, gst_number, tagline } = req.body;
+    if (!shop_name) {
+      return res.status(400).json({ error: 'Shop name is required' });
+    }
+
+    const { rows } = await db.query('SELECT * FROM shop_config LIMIT 1');
+    const existing = rows[0];
+    const logo = req.file ? `/uploads/${req.file.filename}` : (existing ? existing.logo : null);
+
+    if (existing) {
+      await db.query(`
+        UPDATE shop_config SET shop_name = $1, address = $2, phone = $3, email = $4, 
+        gst_number = $5, tagline = $6, logo = $7, configured = 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $8
+      `, [shop_name, address || '', phone || '', email || '', gst_number || '', tagline || '', logo, existing.id]);
+    } else {
+      await db.query(`
+        INSERT INTO shop_config (shop_name, address, phone, email, gst_number, tagline, logo, configured) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 1)
+      `, [shop_name, address || '', phone || '', email || '', gst_number || '', tagline || '', logo]);
+    }
+
+    const configResult = await db.query('SELECT * FROM shop_config LIMIT 1');
+    res.json({ message: 'Shop configuration saved', config: configResult.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  const existing = db.prepare('SELECT * FROM shop_config LIMIT 1').get();
-  const logo = req.file ? `/uploads/${req.file.filename}` : (existing ? existing.logo : null);
-
-  if (existing) {
-    db.prepare(`
-      UPDATE shop_config SET shop_name = ?, address = ?, phone = ?, email = ?, 
-      gst_number = ?, tagline = ?, logo = ?, configured = 1, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(shop_name, address || '', phone || '', email || '', gst_number || '', tagline || '', logo, existing.id);
-  } else {
-    db.prepare(`
-      INSERT INTO shop_config (shop_name, address, phone, email, gst_number, tagline, logo, configured) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-    `).run(shop_name, address || '', phone || '', email || '', gst_number || '', tagline || '', logo);
-  }
-
-  const config = db.prepare('SELECT * FROM shop_config LIMIT 1').get();
-  res.json({ message: 'Shop configuration saved', config });
 });
 
 module.exports = router;
