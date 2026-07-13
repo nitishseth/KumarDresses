@@ -7,7 +7,8 @@ const { authenticate } = require('../middleware/auth');
 router.get('/config', async (req, res) => {
   try {
     const { rows } = await db.query('SELECT shop_name, tagline, logo FROM shop_config LIMIT 1');
-    res.json(rows[0] || { shop_name: 'Kumar Dresses', tagline: '', logo: '' });
+    const config = rows[0] || { shop_name: 'Kumar Dresses', tagline: '', logo: '' };
+    res.json(config);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -63,6 +64,7 @@ router.get('/products', async (req, res) => {
     const offsetParam = paramIndex++;
     const query = `
       SELECT DISTINCT p.id, p.name, p.sku, p.brand, p.mrp, p.selling_price, p.image, p.gender, p.season,
+             p.created_at,
              c.name as category_name,
              COALESCE(stock_agg.total_stock, 0) as total_stock
       FROM products p

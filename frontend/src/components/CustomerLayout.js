@@ -3,6 +3,8 @@ import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 
+const API_HOST = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+
 export default function CustomerLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -47,7 +49,7 @@ export default function CustomerLayout() {
             </button>
             <Link to="/shop" className="sf-logo">
               {shopConfig.logo
-                ? <img src={shopConfig.logo} alt={shopConfig.shop_name} />
+                ? <img src={shopConfig.logo.startsWith('http') ? shopConfig.logo : API_HOST + shopConfig.logo} alt={shopConfig.shop_name} />
                 : <><span className="sf-logo-icon">👗</span><span className="sf-logo-text">{shopConfig.shop_name}</span></>
               }
             </Link>
