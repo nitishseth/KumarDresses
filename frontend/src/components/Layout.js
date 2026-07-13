@@ -60,6 +60,7 @@ export default function Layout({ children }) {
 
   return (
     <div className="app-layout">
+      {mobileOpen && <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />}
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <img
@@ -99,7 +100,7 @@ export default function Layout({ children }) {
       </aside>
       <main className="main-content">
         <div className="topbar no-print">
-          <button className="btn btn-outline" style={{ display: 'none' }} onClick={() => setMobileOpen(!mobileOpen)}>
+          <button className="mobile-menu-btn" onClick={() => setMobileOpen(!mobileOpen)}>
             {mobileOpen ? <FiX /> : <FiMenu />}
           </button>
           <div></div>

@@ -605,6 +605,18 @@
 }
 
 /* ===== RESPONSIVE ===== */
+
+/* Extra large screens */
+@media (min-width: 1600px) {
+  .sf-section-container { max-width: 1500px; }
+  .sf-header-inner { max-width: 1500px; }
+  .sf-products-layout { max-width: 1500px; }
+  .sf-hero h1 { font-size: 3.8rem; }
+  .sf-product-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .sf-product-grid-4 { grid-template-columns: repeat(5, 1fr); }
+  .sf-footer-inner { max-width: 1500px; }
+}
+
 @media (max-width: 1024px) {
   .sf-product-grid-4 { grid-template-columns: repeat(3, 1fr); }
   .sf-pdp-grid { grid-template-columns: 1fr; gap: 28px; }
@@ -612,6 +624,7 @@
   .sf-footer-inner { grid-template-columns: 1fr 1fr; }
   .sf-gender-grid { grid-template-columns: repeat(2, 1fr); }
   .sf-trust-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .sf-offer-banner-inner { flex-direction: column; text-align: center; gap: 24px; }
 }
 
 @media (max-width: 768px) {
