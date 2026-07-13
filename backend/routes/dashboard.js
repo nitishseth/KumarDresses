@@ -154,4 +154,140 @@ router.get('/predictions', authenticate, async (req, res) => {
   }
 });
 
+// Profit dashboard data (password-protected on frontend)
+router.get('/profit', authenticate, async (req, res) => {
+  try {
+    const { store_id, year } = req.query;
+    const y = year || new Date().getFullYear();
+    let storeFilter = '';
+    let billStoreFilter = '';
+    let params = [String(y)];
+    let paramIndex = 2;
+
+    if (store_id) {
+      storeFilter = `AND b.store_id = $${paramIndex}`;
+      billStoreFilter = `AND b.store_id = $${paramIndex}`;
+      params.push(store_id);
+      paramIndex++;
+    }
+
+    // Overall profit: revenue - cost
+    const overallR = await db.query(`
+      SELECT
+        COALESCE(SUM(bi.total), 0) as total_revenue,
+        COALESCE(SUM(bi.quantity * p.cost_price), 0) as total_cost,
+        COALESCE(SUM(bi.total) - SUM(bi.quantity * p.cost_price), 0) as total_profit,
+        COUNT(DISTINCT b.id) as total_bills
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN product_variants pv ON bi.variant_id = pv.id
+      JOIN products p ON pv.product_id = p.id
+      WHERE to_char(b.created_at, 'YYYY') = $1 ${billStoreFilter}
+    `, params);
+    const overall = overallR.rows[0];
+
+    // Monthly profit breakdown
+    const monthlyR = await db.query(`
+      SELECT to_char(b.created_at, 'MM') as month,
+             SUM(bi.total) as revenue,
+             SUM(bi.quantity * p.cost_price) as cost,
+             SUM(bi.total) - SUM(bi.quantity * p.cost_price) as profit,
+             COUNT(DISTINCT b.id) as bills
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN product_variants pv ON bi.variant_id = pv.id
+      JOIN products p ON pv.product_id = p.id
+      WHERE to_char(b.created_at, 'YYYY') = $1 ${billStoreFilter}
+      GROUP BY to_char(b.created_at, 'MM')
+      ORDER BY month
+    `, params);
+
+    // Today's profit
+    const todayR = await db.query(`
+      SELECT
+        COALESCE(SUM(bi.total), 0) as revenue,
+        COALESCE(SUM(bi.quantity * p.cost_price), 0) as cost,
+        COALESCE(SUM(bi.total) - SUM(bi.quantity * p.cost_price), 0) as profit
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN product_variants pv ON bi.variant_id = pv.id
+      JOIN products p ON pv.product_id = p.id
+      WHERE b.created_at::date = CURRENT_DATE ${billStoreFilter.replace('$2', store_id ? '$2' : '')}
+    `, store_id ? [store_id] : []);
+
+    // This month's profit
+    const thisMonthR = await db.query(`
+      SELECT
+        COALESCE(SUM(bi.total), 0) as revenue,
+        COALESCE(SUM(bi.quantity * p.cost_price), 0) as cost,
+        COALESCE(SUM(bi.total) - SUM(bi.quantity * p.cost_price), 0) as profit
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN product_variants pv ON bi.variant_id = pv.id
+      JOIN products p ON pv.product_id = p.id
+      WHERE to_char(b.created_at, 'YYYY-MM') = to_char(NOW(), 'YYYY-MM') ${billStoreFilter.replace('$2', store_id ? '$2' : '')}
+    `, store_id ? [store_id] : []);
+
+    // Top profit products this year
+    const topProfitR = await db.query(`
+      SELECT bi.product_name, bi.sku,
+             SUM(bi.total) as revenue,
+             SUM(bi.quantity * p.cost_price) as cost,
+             SUM(bi.total) - SUM(bi.quantity * p.cost_price) as profit,
+             SUM(bi.quantity) as qty_sold
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN product_variants pv ON bi.variant_id = pv.id
+      JOIN products p ON pv.product_id = p.id
+      WHERE to_char(b.created_at, 'YYYY') = $1 ${billStoreFilter}
+      GROUP BY bi.product_name, bi.sku
+      ORDER BY profit DESC
+      LIMIT 15
+    `, params);
+
+    // Daily profit last 30 days
+    const dailyProfitR = await db.query(`
+      SELECT b.created_at::date as date,
+             SUM(bi.total) as revenue,
+             SUM(bi.quantity * p.cost_price) as cost,
+             SUM(bi.total) - SUM(bi.quantity * p.cost_price) as profit
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN product_variants pv ON bi.variant_id = pv.id
+      JOIN products p ON pv.product_id = p.id
+      WHERE b.created_at >= CURRENT_DATE - INTERVAL '30 days' ${billStoreFilter.replace('$2', store_id ? '$2' : '')}
+      GROUP BY b.created_at::date
+      ORDER BY date
+    `, store_id ? [store_id] : []);
+
+    // Category-wise profit
+    const categoryProfitR = await db.query(`
+      SELECT c.name as category_name,
+             SUM(bi.total) as revenue,
+             SUM(bi.quantity * p.cost_price) as cost,
+             SUM(bi.total) - SUM(bi.quantity * p.cost_price) as profit
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      JOIN product_variants pv ON bi.variant_id = pv.id
+      JOIN products p ON pv.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE to_char(b.created_at, 'YYYY') = $1 ${billStoreFilter}
+      GROUP BY c.name
+      ORDER BY profit DESC
+    `, params);
+
+    res.json({
+      overall,
+      monthly: monthlyR.rows,
+      today: todayR.rows[0],
+      thisMonth: thisMonthR.rows[0],
+      topProducts: topProfitR.rows,
+      dailyProfit: dailyProfitR.rows,
+      categoryProfit: categoryProfitR.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

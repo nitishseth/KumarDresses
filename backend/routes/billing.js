@@ -11,6 +11,53 @@ async function generateBillNumber() {
   return `INV-${dateStr}-${seq}`;
 }
 
+// Get partial payment overdue (>30 days) — MUST be before /:id to avoid route conflict
+router.get('/partial/overdue', authenticate, async (req, res) => {
+  try {
+    const { rows } = await db.query(`
+      SELECT b.*, s.name as store_name,
+             (b.total_amount - b.paid_amount) as remaining,
+             EXTRACT(DAY FROM NOW() - b.created_at)::INTEGER as days_overdue
+      FROM bills b
+      LEFT JOIN stores s ON b.store_id = s.id
+      WHERE b.payment_status = 'partial'
+        AND EXTRACT(DAY FROM NOW() - b.created_at) > 30
+      ORDER BY b.created_at ASC
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Sold items report — MUST be before /:id to avoid route conflict
+router.get('/sold/report', authenticate, async (req, res) => {
+  try {
+    const { from_date, to_date, store_id } = req.query;
+    let where = ['1=1'];
+    let params = [];
+    let paramIndex = 1;
+    if (from_date) { where.push(`b.created_at >= $${paramIndex++}`); params.push(from_date); }
+    if (to_date) { where.push(`b.created_at <= $${paramIndex++}`); params.push(to_date + ' 23:59:59'); }
+    if (store_id) { where.push(`b.store_id = $${paramIndex++}`); params.push(store_id); }
+
+    const { rows } = await db.query(`
+      SELECT bi.product_name, bi.sku, bi.size, bi.color, bi.fit,
+             SUM(bi.quantity) as total_qty, SUM(bi.total) as total_revenue,
+             COUNT(DISTINCT bi.bill_id) as bill_count
+      FROM bill_items bi
+      JOIN bills b ON bi.bill_id = b.id
+      WHERE ${where.join(' AND ')}
+      GROUP BY bi.variant_id, bi.product_name, bi.sku, bi.size, bi.color, bi.fit
+      ORDER BY total_qty DESC
+    `, params);
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // List bills
 router.get('/', authenticate, async (req, res) => {
   try {
@@ -193,53 +240,6 @@ router.post('/:id/payment', authenticate, authorizeStaffOrAdmin, async (req, res
       [req.params.id, Number(amount), payment_method || 'cash', notes || '']);
 
     res.json({ message: 'Payment recorded', paid_amount: newPaid, remaining: bill.total_amount - newPaid, payment_status: newStatus });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get partial payment overdue (>30 days)
-router.get('/partial/overdue', authenticate, async (req, res) => {
-  try {
-    const { rows } = await db.query(`
-      SELECT b.*, s.name as store_name,
-             (b.total_amount - b.paid_amount) as remaining,
-             EXTRACT(DAY FROM NOW() - b.created_at)::INTEGER as days_overdue
-      FROM bills b
-      LEFT JOIN stores s ON b.store_id = s.id
-      WHERE b.payment_status = 'partial'
-        AND EXTRACT(DAY FROM NOW() - b.created_at) > 30
-      ORDER BY b.created_at ASC
-    `);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Sold items report
-router.get('/sold/report', authenticate, async (req, res) => {
-  try {
-    const { from_date, to_date, store_id } = req.query;
-    let where = ['1=1'];
-    let params = [];
-    let paramIndex = 1;
-    if (from_date) { where.push(`b.created_at >= $${paramIndex++}`); params.push(from_date); }
-    if (to_date) { where.push(`b.created_at <= $${paramIndex++}`); params.push(to_date + ' 23:59:59'); }
-    if (store_id) { where.push(`b.store_id = $${paramIndex++}`); params.push(store_id); }
-
-    const { rows } = await db.query(`
-      SELECT bi.product_name, bi.sku, bi.size, bi.color, bi.fit,
-             SUM(bi.quantity) as total_qty, SUM(bi.total) as total_revenue,
-             COUNT(DISTINCT bi.bill_id) as bill_count
-      FROM bill_items bi
-      JOIN bills b ON bi.bill_id = b.id
-      WHERE ${where.join(' AND ')}
-      GROUP BY bi.variant_id, bi.product_name, bi.sku, bi.size, bi.color, bi.fit
-      ORDER BY total_qty DESC
-    `, params);
-
-    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

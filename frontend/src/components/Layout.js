@@ -47,6 +47,7 @@ export default function Layout({ children }) {
       { to: '/reports/dead-stock', icon: <FiBarChart2 />, label: 'Dead Stock' },
       { to: '/reports/stock-aging', icon: <FiTrendingUp />, label: 'Stock Aging' },
       { to: '/reports/predictions', icon: <FiTrendingUp />, label: 'Predictions' },
+      { to: '/profit', icon: <FiDollarSign />, label: 'Profit Analysis', badge: '🔒' },
     ]},
     ...(isAdmin ? [{ section: 'Settings', items: [
       { to: '/stores', icon: <FiGrid />, label: 'Stores' },

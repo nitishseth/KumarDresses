@@ -32,6 +32,7 @@ import DeadStockReport from './components/DeadStockReport';
 import StockAgingReport from './components/StockAgingReport';
 import Predictions from './components/Predictions';
 import About from './components/About';
+import ProfitDashboard from './components/ProfitDashboard';
 import './App.css';
 import './components/CustomerStorefront.css';
 
@@ -86,6 +87,7 @@ function AppRoutes() {
           <Route path="/reports/dead-stock" element={<DeadStockReport />} />
           <Route path="/reports/stock-aging" element={<StockAgingReport />} />
           <Route path="/reports/predictions" element={<Predictions />} />
+          <Route path="/profit" element={<ProfitDashboard />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Route>
