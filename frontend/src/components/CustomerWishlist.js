@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useOutletContext, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import api from '../utils/api';
+import api, { getImageUrl } from '../utils/api';
 
 export default function CustomerWishlist() {
   const { user, setWishlistCount } = useOutletContext();
@@ -25,7 +25,7 @@ export default function CustomerWishlist() {
   };
 
   const getDiscount = (mrp, sp) => mrp > sp ? Math.round(((mrp - sp) / mrp) * 100) : 0;
-  const imgUrl = (img) => img ? (img.startsWith('http') ? img : `${process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000'}${img}`) : null;
+  const imgUrl = (img) => getImageUrl(img);
 
   if (!user) return (
     <div className="sf-wishlist-login">

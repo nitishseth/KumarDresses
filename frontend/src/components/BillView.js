@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Barcode from 'react-barcode';
 import { toast } from 'react-toastify';
-import api from '../utils/api';
+import api, { getImageUrl } from '../utils/api';
 
 export default function BillView() {
   const { id } = useParams();
@@ -44,7 +44,7 @@ export default function BillView() {
       <div className="card" style={{ maxWidth: 800, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <img
-            src={shopConfig.logo ? 'http://localhost:5000' + shopConfig.logo : '/logo.svg'}
+            src={shopConfig.logo ? getImageUrl(shopConfig.logo) : '/logo.svg'}
             alt="Logo"
             style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover', marginBottom: 8 }}
           />
