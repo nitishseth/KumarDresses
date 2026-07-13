@@ -5,12 +5,9 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { authenticate, authorizeAdmin, authorizeStaffOrAdmin } = require('../middleware/auth');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-  filename: (req, file, cb) => cb(null, 'prod_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + path.extname(file.originalname))
-});
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 function generateSKU(name, category) {
   const prefix = (category || 'GEN').substring(0, 3).toUpperCase();
@@ -128,7 +125,10 @@ router.post('/', authenticate, authorizeAdmin, upload.single('image'), async (re
     }
     const sku = generateSKU(name, catName);
     const barcode = generateBarcode();
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+    let image = null;
+    if (req.file) {
+      image = await uploadToCloudinary(req.file.buffer, 'kumar-dresses/products');
+    }
 
     const { rows } = await db.query(`
       INSERT INTO products (sku,name,category_id,brand,fabric,material,season,gender,collection,mrp,cost_price,selling_price,hsn_code,tax_percent,description,image,barcode)
@@ -149,7 +149,10 @@ router.put('/:id', authenticate, authorizeAdmin, upload.single('image'), async (
     if (!rows[0]) return res.status(404).json({ error: 'Product not found' });
     const existing = rows[0];
 
-    const image = req.file ? `/uploads/${req.file.filename}` : existing.image;
+    let image = existing.image;
+    if (req.file) {
+      image = await uploadToCloudinary(req.file.buffer, 'kumar-dresses/products');
+    }
 
     await db.query(`
       UPDATE products SET name=$1,category_id=$2,brand=$3,fabric=$4,material=$5,season=$6,gender=$7,collection=$8,mrp=$9,cost_price=$10,selling_price=$11,hsn_code=$12,tax_percent=$13,description=$14,image=$15,updated_at=CURRENT_TIMESTAMP
@@ -191,7 +194,10 @@ router.post('/:id/variants', authenticate, authorizeAdmin, upload.single('image'
 
     const skuVariant = `${product.sku}-${size}${color ? '-' + color.substring(0, 3).toUpperCase() : ''}${fit ? '-' + fit.substring(0, 3).toUpperCase() : ''}`;
     const barcode = generateBarcode();
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+    let image = null;
+    if (req.file) {
+      image = await uploadToCloudinary(req.file.buffer, 'kumar-dresses/variants');
+    }
 
     // Check duplicate
     const dupResult = await db.query(
@@ -279,7 +285,10 @@ router.put('/:productId/variants/:variantId', authenticate, authorizeAdmin, uplo
     if (!rows[0]) return res.status(404).json({ error: 'Variant not found' });
     const existing = rows[0];
 
-    const image = req.file ? `/uploads/${req.file.filename}` : existing.image;
+    let image = existing.image;
+    if (req.file) {
+      image = await uploadToCloudinary(req.file.buffer, 'kumar-dresses/variants');
+    }
     await db.query('UPDATE product_variants SET image=$1, additional_price=$2 WHERE id=$3',
       [image, Number(additional_price) || existing.additional_price, req.params.variantId]);
     res.json({ message: 'Variant updated' });

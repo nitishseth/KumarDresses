@@ -1,18 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
 const db = require('../db');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, 'shop_logo_' + Date.now() + ext);
-  }
-});
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Get shop config
 router.get('/', authenticate, async (req, res) => {
@@ -34,7 +27,10 @@ router.put('/', authenticate, authorizeAdmin, upload.single('logo'), async (req,
 
     const { rows } = await db.query('SELECT * FROM shop_config LIMIT 1');
     const existing = rows[0];
-    const logo = req.file ? `/uploads/${req.file.filename}` : (existing ? existing.logo : null);
+    let logo = existing ? existing.logo : null;
+    if (req.file) {
+      logo = await uploadToCloudinary(req.file.buffer, 'kumar-dresses/logo');
+    }
 
     if (existing) {
       await db.query(`

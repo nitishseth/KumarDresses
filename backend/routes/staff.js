@@ -2,15 +2,11 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
-const path = require('path');
 const db = require('../db');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-  filename: (req, file, cb) => cb(null, 'staff_' + Date.now() + path.extname(file.originalname))
-});
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 // List staff
 router.get('/', authenticate, authorizeAdmin, async (req, res) => {
@@ -32,7 +28,10 @@ router.post('/', authenticate, authorizeAdmin, upload.single('picture'), async (
     if (existing[0]) return res.status(400).json({ error: 'Username already exists' });
 
     const hash = bcrypt.hashSync(password, 10);
-    const picture = req.file ? `/uploads/${req.file.filename}` : null;
+    let picture = null;
+    if (req.file) {
+      picture = await uploadToCloudinary(req.file.buffer, 'kumar-dresses/staff');
+    }
     const validRole = ['staff', 'user'].includes(role) ? role : 'user';
 
     const { rows } = await db.query(
@@ -53,7 +52,10 @@ router.put('/:id', authenticate, authorizeAdmin, upload.single('picture'), async
     if (!rows[0]) return res.status(404).json({ error: 'User not found' });
     const user = rows[0];
 
-    const picture = req.file ? `/uploads/${req.file.filename}` : user.picture;
+    let picture = user.picture;
+    if (req.file) {
+      picture = await uploadToCloudinary(req.file.buffer, 'kumar-dresses/staff');
+    }
     const validRole = role && ['staff', 'user'].includes(role) ? role : user.role;
 
     await db.query('UPDATE users SET name=$1,role=$2,phone=$3,store_id=$4,picture=$5,active=$6 WHERE id=$7',
